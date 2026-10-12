@@ -26,10 +26,10 @@ class MMIO:
 
     def _via_module(self, phys, value=None):
         if value is None:
-            buf = bytearray(struct.pack("<IQI", phys, 0, 0))
+            buf = bytearray(struct.pack("<QII", phys, 0, 0))
             fcntl.ioctl(self.fd, _MMIO_READ, buf)
-            return struct.unpack("<IQI", bytes(buf))[1]
-        req = struct.pack("<IQI", phys, value, 0)
+            return struct.unpack("<QII", bytes(buf))[1]
+        req = struct.pack("<QII", phys, value, 0)
         fcntl.ioctl(self.fd, _MMIO_WRITE, req)
 
     def r32(self, phys):
