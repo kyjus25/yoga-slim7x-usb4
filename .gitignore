@@ -16,3 +16,6 @@ __pycache__/
 *.pem
 *.key
 .DS_Store
+
+# local-only: driver pack downloads, never commit
+_dl/
