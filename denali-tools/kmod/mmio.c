@@ -18,6 +18,8 @@
 #include <linux/miscdevice.h>
 #include <linux/module.h>
 #include <linux/uaccess.h>
+#include <linux/mm.h>
+#include <linux/highmem.h>
 
 struct mmio_req {
 	__u64 phys;
@@ -32,12 +34,40 @@ struct mmio_req {
 static long mmio_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 {
 	struct mmio_req req;
-	void __iomem *v;
+	void __iomem *v = NULL;
 	u32 val;
+	unsigned long pfn;
+	bool is_ram = false;
 
 	if (copy_from_user(&req, (void __user *)arg, sizeof(req)))
 		return -EFAULT;
 
+	/* Check if address is in RAM - use linear map instead of ioremap */
+	pfn = __phys_to_pfn(req.phys);
+	if (pfn_valid(pfn)) {
+		/* It's a valid PFN, try linear map (works for RAM on ARM64) */
+		is_ram = true;
+	}
+
+	if (is_ram) {
+		/* Direct access via linear map - no ioremap needed */
+		void *vaddr = phys_to_virt(req.phys);
+		switch (cmd) {
+		case MMIO_READ:
+			val = READ_ONCE(*(u32 *)vaddr);
+			req.value = val;
+			if (copy_to_user((void __user *)arg, &req, sizeof(req)))
+				return -EFAULT;
+			return 0;
+		case MMIO_WRITE:
+			WRITE_ONCE(*(u32 *)vaddr, req.value);
+			return 0;
+		default:
+			return -ENOTTY;
+		}
+	}
+
+	/* Not RAM, use ioremap for MMIO */
 	v = ioremap(req.phys & ~0xFFFULL, 0x1000);
 	if (!v)
 		return -ENOMEM;
