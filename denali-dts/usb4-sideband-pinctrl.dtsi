@@ -1,0 +1,67 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Denali (Surface Pro 11, X1P-64100) USB4 sideband pinctrl.
+ *
+ * The USB4 host-router UC firmware waits for the sideband channel to the
+ * PS8830 retimer ("Waiting for SB RX Connect"). These pins were left
+ * UNCLAIMED by the stock Denali device tree, so the UC's sideband TX/RX
+ * went nowhere.
+ *
+ * Adapted from birkskyum/yoga-slim7x-usb4 experiments/omarchy1 patch 0001
+ * (hamoa.dtsi usb4_X_sb_default states). Denali has 2 USB4 ports, not 3,
+ * so only usb4_0 / usb4_1 are defined here.
+ *
+ * Function numbers verified against the running kernel's pinctrl-msm
+ * (pinmux-functions): usb0_sbrx=140, usb0_sbtx=141, usb1_sbrx=144,
+ * usb1_sbtx=145.
+ *
+ * Include from the board DTS (after &tlmm is defined) or merge the states
+ * into the tlmm node, then reference from the usb4 router nodes:
+ *
+ *     pinctrl-0 = <&usb4_0_sb_default>;
+ *     pinctrl-names = "default";
+ */
+
+&tlmm {
+	usb4_0_sb_default: usb4-0-sb-default-state {
+		rx-pins {
+			pins = "gpio163";
+			function = "usb0_sbrx";
+			bias-disable;
+		};
+
+		txa-pins {
+			pins = "gpio164";
+			function = "usb0_sbtx";
+			drive-strength = <10>;
+			bias-pull-up;
+		};
+
+		txb-pins {
+			pins = "gpio165";
+			function = "usb0_sbtx";
+			drive-strength = <10>;
+		};
+	};
+
+	usb4_1_sb_default: usb4-1-sb-default-state {
+		rx-pins {
+			pins = "gpio172";
+			function = "usb1_sbrx";
+			bias-disable;
+		};
+
+		txa-pins {
+			pins = "gpio173";
+			function = "usb1_sbtx";
+			drive-strength = <10>;
+			bias-pull-up;
+		};
+
+		txb-pins {
+			pins = "gpio174";
+			function = "usb1_sbtx";
+			drive-strength = <10>;
+		};
+	};
+};
