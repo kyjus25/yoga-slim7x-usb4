@@ -11,8 +11,8 @@ import fcntl
 import os
 import struct
 
-_MMIO_READ = 0x80444d01    # _IOR('M', 1, 16)
-_MMIO_WRITE = 0x40144d02   # _IOW('M', 2, 16)
+_MMIO_READ = 0x80104d01    # _IOR('M', 1, 16)
+_MMIO_WRITE = 0x40104d02   # _IOW('M', 2, 16)
 
 
 class MMIO:
