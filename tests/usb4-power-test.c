@@ -226,6 +226,85 @@ static void usb4_gdsc_power_off(void __iomem *gdscr)
 	pr_info(DRV_NAME ": GDSC collapsed (reg=0x%08x)\n", readl(gdscr));
 }
 
+/*
+ * Test the UC command ring with the CORRECT Qualcomm protocol.
+ *
+ * From UC-DOORBELL-RESEARCH-2026-10-12.md (root-caused from
+ * QcUsb4Filter8380.sys disassembly):
+ * - UC+0x2078 is READ-ONLY (ring offset, firmware-configured). NEVER write.
+ * - UC+0x207c is the doorbell producer counter: read, increment by 1,
+ *   write back. NEVER write an absolute value.
+ * - The ring lives in UC MMIO space at UC_base + ring_offset.
+ * - Entry address = UC_base + ring_offset + (doorbell_count * 16).
+ * - Commands are written via MMIO (16 bytes), NOT via system RAM DMA.
+ *
+ * This sends a SAFE, READ-ONLY command (TB_CFG_PKG_READ: read 1 dword from
+ * local router config space offset 0). It cannot modify hardware state.
+ */
+static void usb4_test_command_ring(void __iomem *uc_base)
+{
+	u32 ring_offset, doorbell;
+	void __iomem *entry;
+	u32 w0, w1, w2, w3;
+	int timeout;
+
+	pr_info(DRV_NAME ": testing command ring (correct protocol)...\n");
+
+	/* 1. Read ring offset from UC+0x2078 (DO NOT WRITE - read-only) */
+	ring_offset = ioread32(uc_base + 0x2078);
+	pr_info(DRV_NAME ": ring offset (UC+0x2078) = 0x%08x\n", ring_offset);
+
+	/* 2. Read doorbell count from UC+0x207c */
+	doorbell = ioread32(uc_base + 0x207c);
+	pr_info(DRV_NAME ": doorbell (UC+0x207c) = %u\n", doorbell);
+
+	/* Sanity check: ring must fit in the mapped UC region (0x3000) */
+	if (ring_offset > 0x3000 ||
+	    ring_offset + (doorbell + 1) * 16 > 0x3000) {
+		pr_warn(DRV_NAME ": ring offset 0x%08x out of bounds, aborting ring test\n",
+			ring_offset);
+		return;
+	}
+
+	/* 3. Calculate entry address: UC_base + ring_offset + (doorbell * 16) */
+	entry = uc_base + ring_offset + (doorbell * 16);
+	pr_info(DRV_NAME ": command entry at UC+0x%x (doorbell=%u)\n",
+		ring_offset + doorbell * 16, doorbell);
+
+	/* 4. Write 16-byte command via MMIO (TB_CFG_PKG_READ, safe read-only) */
+	iowrite32(0x00000001, entry + 0);	/* packet_type = TB_CFG_PKG_READ */
+	iowrite32(0x00000000, entry + 4);	/* route_hi = 0 */
+	iowrite32(0x00000000, entry + 8);	/* route_lo = 0 (local router) */
+	iowrite32(0x04002000, entry + 12);	/* address: 1 dword @ offset 0 */
+	pr_info(DRV_NAME ": wrote command: 00000001 00000000 00000000 04002000\n");
+
+	/* 5. Memory barrier: ensure command writes complete before doorbell */
+	wmb();
+
+	/* 6. Read doorbell, increment by 1, write back (read-modify-write) */
+	doorbell = ioread32(uc_base + 0x207c);
+	iowrite32(doorbell + 1, uc_base + 0x207c);
+	pr_info(DRV_NAME ": doorbell rung (%u -> %u)\n", doorbell, doorbell + 1);
+
+	/* 7. Poll for completion: response sets bit 31 of word 1 */
+	timeout = 100; /* 100ms */
+	while (timeout-- > 0) {
+		w1 = ioread32(entry + 4);
+		if (w1 & 0x80000000) {
+			w0 = ioread32(entry + 0);
+			w2 = ioread32(entry + 8);
+			w3 = ioread32(entry + 12);
+			pr_info(DRV_NAME ": RESPONSE RECEIVED: %08x %08x %08x %08x\n",
+				w0, w1, w2, w3);
+			return;
+		}
+		mdelay(1);
+	}
+
+	pr_warn(DRV_NAME ": command ring timeout after 100ms (no response)\n");
+	pr_warn(DRV_NAME ": doorbell now = %u\n", ioread32(uc_base + 0x207c));
+}
+
 static int __init usb4_power_test_init(void)
 {
 	const struct usb4_inst_data *inst;
@@ -337,10 +416,13 @@ static int __init usb4_power_test_init(void)
 			doorbell = readl(uc_base + 0x207c);
 			pr_info(DRV_NAME ": UC@0x15600000: ring_base(0x2078)=0x%08x, doorbell(0x207c)=0x%08x\n",
 				ring_base, doorbell);
-			if (ring_base == 0xdeadbeef || ring_base == 0xffffffff)
+			if (ring_base == 0xdeadbeef || ring_base == 0xffffffff) {
 				pr_warn(DRV_NAME ": UC appears DARK (invalid register values)\n");
-			else
+			} else {
 				pr_info(DRV_NAME ": UC appears ALIVE (valid register values)\n");
+				/* Test the command ring with the correct protocol */
+				usb4_test_command_ring(uc_base);
+			}
 			iounmap(uc_base);
 		} else {
 			pr_err(DRV_NAME ": failed to ioremap UC base\n");
