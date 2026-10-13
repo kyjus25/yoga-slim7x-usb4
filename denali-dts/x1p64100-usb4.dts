@@ -1,0 +1,71 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * Device Tree overlay for Qualcomm X1P64100 (Denali) USB4 controller
+ * Microsoft Surface Pro 11
+ *
+ * USB4 router at 0x15600000 (instance 0)
+ * Adapted from Yoga Slim 7x X1E80100 USB4 bring-up
+ */
+
+#include <dt-bindings/clock/qcom,x1e80100-gcc.h>
+#include <dt-bindings/reset/qcom,x1e80100-gcc.h>
+#include <dt-bindings/phy/phy-qcom-qmp.h>
+
+/ {
+	fragment@0 {
+		target-path = "/soc@0";
+		__overlay__ {
+			usb4_0: usb4@15600000 {
+				compatible = "qcom,x1p64100-usb4";
+				reg = <0x0 0x15600000 0x0 0x100000>;
+				reg-names = "router";
+
+				/* Clocks (14 total for instance 0) */
+				clocks = <&gcc GCC_USB4_0_CFG_AHB_CLK>,
+					 <&gcc GCC_USB4_0_SYS_CLK>,
+					 <&gcc GCC_USB4_0_MASTER_CLK>,
+					 <&gcc GCC_USB4_0_SB_IF_CLK>,
+					 <&gcc GCC_USB4_0_TMU_CLK>,
+					 <&gcc GCC_USB4_0_PHY_USB_PIPE_CLK>,
+					 <&gcc GCC_USB4_0_PHY_P2RR2P_PIPE_CLK>,
+					 <&gcc GCC_USB4_0_PHY_PCIE_PIPE_CLK>,
+					 <&gcc GCC_USB4_0_DP_CLK>,
+					 <&gcc GCC_USB4_0_TBT_CLK>,
+					 <&gcc GCC_USB4_0_USB3_CLK>,
+					 <&gcc GCC_USB4_0_APB_CLK>,
+					 <&gcc GCC_USB4_0_AT_CLK>,
+					 <&gcc GCC_USB4_0_SB_CLK>;
+				clock-names = "cfg_ahb", "sys", "master",
+					      "sb_if", "tmu",
+					      "phy_usb_pipe", "phy_p2rr2p_pipe",
+					      "phy_pcie_pipe", "dp", "tbt",
+					      "usb3", "apb", "at", "sb";
+
+				/* Power domain */
+				power-domains = <&gcc USB4_0_GDSC>;
+
+				/* Resets (6 BCRs) */
+				resets = <&gcc GCC_USB4_0_BCR>,
+					 <&gcc GCC_USB4_0_PHY_BCR>,
+					 <&gcc GCC_USB4_0_DP_BCR>,
+					 <&gcc GCC_USB4_0_TBT_BCR>,
+					 <&gcc GCC_USB4_0_USB3_BCR>,
+					 <&gcc GCC_USB4_0_SB_BCR>;
+				reset-names = "usb4", "phy", "dp",
+					      "tbt", "usb3", "sb";
+
+				/* PHY */
+				phys = <&usb4_phy0>;
+				phy-names = "usb4";
+
+				/* Firmware */
+				firmware-name = "qcom/x1p64100/usb4-router-legacy.bin";
+
+				/* Router index (0 for instance 0) */
+				qcom,router-index = <0>;
+
+				status = "okay";
+			};
+		};
+	};
+};
