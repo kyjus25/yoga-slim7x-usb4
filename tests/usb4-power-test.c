@@ -227,6 +227,22 @@ static void usb4_gdsc_power_off(void __iomem *gdscr)
 }
 
 /*
+ * Dump UC registers around the command ring area to understand the layout.
+ * Dumps 32-bit registers from UC+0x2000 to UC+0x20A0 (steps of 4).
+ */
+static void usb4_dump_uc_regs(void __iomem *uc_base)
+{
+	u32 off;
+	u32 val;
+
+	pr_info(DRV_NAME ": UC register dump (UC+0x2000 to UC+0x20A0):\n");
+	for (off = 0x2000; off <= 0x20A0; off += 4) {
+		val = ioread32(uc_base + off);
+		pr_info(DRV_NAME ": UC+0x%04x = 0x%08x\n", off, val);
+	}
+}
+
+/*
  * Test the UC command ring with the CORRECT Qualcomm protocol.
  *
  * From UC-DOORBELL-RESEARCH-2026-10-12.md (root-caused from
@@ -420,6 +436,8 @@ static int __init usb4_power_test_init(void)
 				pr_warn(DRV_NAME ": UC appears DARK (invalid register values)\n");
 			} else {
 				pr_info(DRV_NAME ": UC appears ALIVE (valid register values)\n");
+				/* Dump registers around the ring area before testing */
+				usb4_dump_uc_regs(uc_base);
 				/* Test the command ring with the correct protocol */
 				usb4_test_command_ring(uc_base);
 			}
