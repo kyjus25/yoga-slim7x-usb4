@@ -48,6 +48,10 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/err.h>
+#include <linux/dma-mapping.h>
+#include <linux/string.h>
+#include <linux/slab.h>
+#include <linux/mm.h>
 
 #define DRV_NAME	"usb4-power-test"
 
@@ -342,6 +346,7 @@ static int __init usb4_power_test_init(void)
 			pr_err(DRV_NAME ": failed to ioremap UC base\n");
 		}
 	}
+
 
 	pr_info(DRV_NAME ": run 'lspci' now and check for new USB4/Thunderbolt devices\n");
 	pr_info(DRV_NAME ": also check 'dmesg | grep -i thunderbolt' for driver probe\n");
